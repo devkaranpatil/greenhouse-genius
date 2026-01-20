@@ -24,7 +24,7 @@ function LoadingFallback() {
 
 export function MiddlePanel({ config, onDimensionEdit }: MiddlePanelProps) {
   const area = config.length * config.width;
-  const volume = area * ((config.eaveHeight + config.ridgeHeight) / 2);
+  const volume = area * ((config.gutterHeight + config.ridgeHeight) / 2);
 
   return (
     <div className="h-full flex flex-col panel-middle">

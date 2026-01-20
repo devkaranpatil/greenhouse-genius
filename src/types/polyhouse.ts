@@ -1,24 +1,27 @@
 export interface PolyhouseConfig {
-  // Dimensions
+  // Base Dimensions
   length: number;
   width: number;
-  eaveHeight: number;
+  
+  // Height Configuration
+  gutterHeight: number;
   ridgeHeight: number;
   
-  // Type & Structure
-  polyhouseType: 'naturally-ventilated' | 'fan-and-pad' | 'climate-controlled';
-  roofType: 'gable' | 'gothic' | 'quonset' | 'venlo';
-  structureMaterial: 'gi-pipe' | 'ms-pipe' | 'aluminum';
-  coverMaterial: 'polyethylene' | 'polycarbonate' | 'shade-net' | 'glass';
+  // Polyhouse Type
+  polyhouseType: 'naturally-ventilated' | 'climate-controlled' | 'shade-net';
   
-  // Ventilation
-  sideVentilation: boolean;
-  topVentilation: boolean;
-  insectNet: boolean;
-  foggers: boolean;
-  fans: boolean;
+  // Roof Geometry
+  roofType: 'flat' | 'gable' | 'gothic';
   
-  // Location
+  // Materials
+  structureMaterial: 'gi-steel' | 'aluminium' | 'bamboo';
+  coverMaterial: 'uv-polyfilm' | 'shade-net' | 'insect-net';
+  
+  // Ventilation & Access
+  sideVentilation: 'none' | 'manual-rollup' | 'motorized-rollup' | 'louver';
+  doorEntry: 'single-sliding' | 'double-sliding' | 'roll-up' | 'curtain';
+  
+  // Location & Climate
   state: string;
   district: string;
 }
@@ -63,29 +66,41 @@ export interface CalculationResult {
 }
 
 export const POLYHOUSE_TYPES = [
-  { value: 'naturally-ventilated', label: 'Naturally Ventilated' },
-  { value: 'fan-and-pad', label: 'Fan & Pad Cooled' },
-  { value: 'climate-controlled', label: 'Climate Controlled' },
+  { value: 'naturally-ventilated', label: 'Naturally Ventilated', description: 'Uses natural wind for cooling' },
+  { value: 'climate-controlled', label: 'Climate Controlled', description: 'Fans and pads for precision' },
+  { value: 'shade-net', label: 'Shade Net', description: 'Basic protection from sunlight' },
 ] as const;
 
 export const ROOF_TYPES = [
-  { value: 'gable', label: 'Gable (A-Frame)' },
-  { value: 'gothic', label: 'Gothic Arch' },
-  { value: 'quonset', label: 'Quonset (Round)' },
-  { value: 'venlo', label: 'Venlo (Multi-span)' },
+  { value: 'flat', label: 'Flat', description: 'Simple & low-cost' },
+  { value: 'gable', label: 'Gable', description: 'Traditional A-shape' },
+  { value: 'gothic', label: 'Gothic', description: 'Best for snow/rain' },
 ] as const;
 
 export const STRUCTURE_MATERIALS = [
-  { value: 'gi-pipe', label: 'GI Pipe (Galvanized Iron)' },
-  { value: 'ms-pipe', label: 'MS Pipe (Mild Steel)' },
-  { value: 'aluminum', label: 'Aluminum' },
+  { value: 'gi-steel', label: 'GI Steel' },
+  { value: 'aluminium', label: 'Aluminium' },
+  { value: 'bamboo', label: 'Bamboo' },
 ] as const;
 
 export const COVER_MATERIALS = [
-  { value: 'polyethylene', label: 'UV-Stabilized Polyethylene' },
-  { value: 'polycarbonate', label: 'Polycarbonate Sheet' },
-  { value: 'shade-net', label: 'Shade Net (50-75%)' },
-  { value: 'glass', label: 'Tempered Glass' },
+  { value: 'uv-polyfilm', label: 'UV Polyfilm' },
+  { value: 'shade-net', label: 'Shade Net' },
+  { value: 'insect-net', label: 'Insect Net' },
+] as const;
+
+export const SIDE_VENTILATION_OPTIONS = [
+  { value: 'none', label: 'None' },
+  { value: 'manual-rollup', label: 'Manual Roll-up' },
+  { value: 'motorized-rollup', label: 'Motorized Roll-up' },
+  { value: 'louver', label: 'Louver Vents' },
+] as const;
+
+export const DOOR_ENTRY_OPTIONS = [
+  { value: 'single-sliding', label: 'Single Sliding Door' },
+  { value: 'double-sliding', label: 'Double Sliding Door' },
+  { value: 'roll-up', label: 'Roll-up Door' },
+  { value: 'curtain', label: 'Curtain Entry' },
 ] as const;
 
 export const INDIAN_STATES = [
@@ -97,20 +112,33 @@ export const INDIAN_STATES = [
   'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
 ] as const;
 
+export const INDIAN_DISTRICTS: Record<string, string[]> = {
+  'Karnataka': ['Bengaluru Urban', 'Bengaluru Rural', 'Mysuru', 'Mangaluru', 'Hubli-Dharwad', 'Belgaum', 'Gulbarga', 'Shimoga'],
+  'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Nashik', 'Aurangabad', 'Solapur', 'Kolhapur', 'Thane'],
+  'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Salem', 'Tiruchirappalli', 'Tirunelveli', 'Erode', 'Vellore'],
+  'Kerala': ['Thiruvananthapuram', 'Kochi', 'Kozhikode', 'Thrissur', 'Kannur', 'Kollam', 'Palakkad', 'Alappuzha'],
+  'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar', 'Jamnagar', 'Gandhinagar', 'Junagadh'],
+  'Rajasthan': ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota', 'Bikaner', 'Ajmer', 'Alwar', 'Bharatpur'],
+  'Uttar Pradesh': ['Lucknow', 'Kanpur', 'Agra', 'Varanasi', 'Prayagraj', 'Meerut', 'Ghaziabad', 'Noida'],
+  'Madhya Pradesh': ['Bhopal', 'Indore', 'Jabalpur', 'Gwalior', 'Ujjain', 'Sagar', 'Rewa', 'Satna'],
+  'West Bengal': ['Kolkata', 'Howrah', 'Darjeeling', 'Siliguri', 'Asansol', 'Durgapur', 'Kharagpur', 'Murshidabad'],
+  'Andhra Pradesh': ['Visakhapatnam', 'Vijayawada', 'Guntur', 'Tirupati', 'Nellore', 'Kurnool', 'Kakinada', 'Rajahmundry'],
+  'Telangana': ['Hyderabad', 'Warangal', 'Nizamabad', 'Karimnagar', 'Khammam', 'Mahbubnagar', 'Nalgonda', 'Adilabad'],
+  'Punjab': ['Chandigarh', 'Ludhiana', 'Amritsar', 'Jalandhar', 'Patiala', 'Bathinda', 'Mohali', 'Pathankot'],
+  'Haryana': ['Gurugram', 'Faridabad', 'Panipat', 'Ambala', 'Karnal', 'Hisar', 'Rohtak', 'Sonipat'],
+};
+
 export const DEFAULT_CONFIG: PolyhouseConfig = {
   length: 30,
-  width: 20,
-  eaveHeight: 4,
+  width: 10,
+  gutterHeight: 4,
   ridgeHeight: 6,
   polyhouseType: 'naturally-ventilated',
   roofType: 'gable',
-  structureMaterial: 'gi-pipe',
-  coverMaterial: 'polyethylene',
-  sideVentilation: true,
-  topVentilation: true,
-  insectNet: true,
-  foggers: false,
-  fans: false,
-  state: 'Karnataka',
-  district: 'Bengaluru',
+  structureMaterial: 'gi-steel',
+  coverMaterial: 'uv-polyfilm',
+  sideVentilation: 'manual-rollup',
+  doorEntry: 'single-sliding',
+  state: '',
+  district: '',
 };

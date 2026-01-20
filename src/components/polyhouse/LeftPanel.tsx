@@ -1,18 +1,19 @@
-import { useState } from 'react';
-import { Settings2, Ruler, Building2, Wind, MapPin, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { 
   PolyhouseConfig, 
   POLYHOUSE_TYPES, 
   ROOF_TYPES, 
   STRUCTURE_MATERIALS, 
   COVER_MATERIALS,
-  INDIAN_STATES 
+  SIDE_VENTILATION_OPTIONS,
+  DOOR_ENTRY_OPTIONS,
+  INDIAN_STATES,
+  INDIAN_DISTRICTS 
 } from '@/types/polyhouse';
 
 interface LeftPanelProps {
@@ -33,270 +34,299 @@ export function LeftPanel({ config, onConfigChange, area }: LeftPanelProps) {
     }
   };
 
+  const districts = config.state ? INDIAN_DISTRICTS[config.state] || [] : [];
+
   return (
-    <div className="h-full flex flex-col panel-left">
-      {/* Header */}
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Settings2 className="w-4 h-4 text-primary" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground">Configuration</h2>
-            <p className="text-xs text-muted-foreground">Define polyhouse parameters</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Area Display */}
-      <div className="mx-4 mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Total Area</span>
-          <span className="text-lg font-semibold text-primary">{area.toFixed(0)} m²</span>
-        </div>
-      </div>
-
-      {/* Scrollable Content */}
-      <ScrollArea className="flex-1 px-4 custom-scrollbar">
-        <Accordion type="multiple" defaultValue={['dimensions', 'type', 'ventilation', 'location']} className="py-4">
+    <div className="h-full flex flex-col bg-background">
+      <ScrollArea className="flex-1 custom-scrollbar">
+        <div className="p-6 space-y-8">
           
-          {/* Dimensions Section */}
-          <AccordionItem value="dimensions" className="border-b-0 mb-2">
-            <AccordionTrigger className="py-3 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors hover:no-underline">
-              <div className="flex items-center gap-2">
-                <Ruler className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">Dimensions</span>
+          {/* 1. BASE DIMENSIONS */}
+          <section>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+              1. BASE DIMENSIONS
+            </h3>
+            <p className="text-sm text-foreground mb-4">
+              Define the footprint of your polyhouse
+            </p>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Length (m)</Label>
+                <Input
+                  type="number"
+                  value={config.length}
+                  onChange={(e) => updateNumber('length', e.target.value)}
+                  min={5}
+                  max={200}
+                  className="bg-background"
+                />
               </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-3 pb-1">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="input-group">
-                  <Label>Length (m)</Label>
-                  <Input
-                    type="number"
-                    value={config.length}
-                    onChange={(e) => updateNumber('length', e.target.value)}
-                    min={5}
-                    max={200}
-                  />
-                </div>
-                <div className="input-group">
-                  <Label>Width (m)</Label>
-                  <Input
-                    type="number"
-                    value={config.width}
-                    onChange={(e) => updateNumber('width', e.target.value)}
-                    min={5}
-                    max={100}
-                  />
-                </div>
-                <div className="input-group">
-                  <Label>Eave Height (m)</Label>
-                  <Input
-                    type="number"
-                    value={config.eaveHeight}
-                    onChange={(e) => updateNumber('eaveHeight', e.target.value)}
-                    min={2}
-                    max={8}
-                    step={0.5}
-                  />
-                </div>
-                <div className="input-group">
-                  <Label>Ridge Height (m)</Label>
-                  <Input
-                    type="number"
-                    value={config.ridgeHeight}
-                    onChange={(e) => updateNumber('ridgeHeight', e.target.value)}
-                    min={3}
-                    max={12}
-                    step={0.5}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Width (m)</Label>
+                <Input
+                  type="number"
+                  value={config.width}
+                  onChange={(e) => updateNumber('width', e.target.value)}
+                  min={5}
+                  max={100}
+                  className="bg-background"
+                />
               </div>
-            </AccordionContent>
-          </AccordionItem>
+            </div>
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <span className="text-sm text-primary font-medium">
+                Total Area: {area.toFixed(0)} m²
+              </span>
+            </div>
+          </section>
 
-          {/* Type & Structure Section */}
-          <AccordionItem value="type" className="border-b-0 mb-2">
-            <AccordionTrigger className="py-3 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors hover:no-underline">
-              <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">Type & Structure</span>
+          {/* 2. HEIGHT CONFIGURATION */}
+          <section>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+              2. HEIGHT CONFIGURATION
+            </h3>
+            <p className="text-sm text-foreground mb-4">
+              Set structural heights for proper airflow
+            </p>
+            <div className="grid grid-cols-2 gap-4 mb-2">
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Gutter (m)</Label>
+                <Input
+                  type="number"
+                  value={config.gutterHeight}
+                  onChange={(e) => updateNumber('gutterHeight', e.target.value)}
+                  min={2}
+                  max={8}
+                  step={0.5}
+                  placeholder="e.g. 4.0"
+                  className="bg-background"
+                />
               </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-3 pb-1">
-              <div className="space-y-3">
-                <div className="input-group">
-                  <Label>Polyhouse Type</Label>
-                  <Select 
-                    value={config.polyhouseType} 
-                    onValueChange={(v) => updateConfig('polyhouseType', v as any)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {POLYHOUSE_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="input-group">
-                  <Label>Roof Type</Label>
-                  <Select 
-                    value={config.roofType} 
-                    onValueChange={(v) => updateConfig('roofType', v as any)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROOF_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="input-group">
-                  <Label>Structure Material</Label>
-                  <Select 
-                    value={config.structureMaterial} 
-                    onValueChange={(v) => updateConfig('structureMaterial', v as any)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STRUCTURE_MATERIALS.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="input-group">
-                  <Label>Cover Material</Label>
-                  <Select 
-                    value={config.coverMaterial} 
-                    onValueChange={(v) => updateConfig('coverMaterial', v as any)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COVER_MATERIALS.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Ridge (m)</Label>
+                <Input
+                  type="number"
+                  value={config.ridgeHeight}
+                  onChange={(e) => updateNumber('ridgeHeight', e.target.value)}
+                  min={3}
+                  max={12}
+                  step={0.5}
+                  className="bg-background"
+                />
               </div>
-            </AccordionContent>
-          </AccordionItem>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Ridge must be higher than gutter for slope.
+            </p>
+          </section>
 
-          {/* Ventilation Section */}
-          <AccordionItem value="ventilation" className="border-b-0 mb-2">
-            <AccordionTrigger className="py-3 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors hover:no-underline">
-              <div className="flex items-center gap-2">
-                <Wind className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">Ventilation & Climate</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-3 pb-1">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between py-2">
-                  <Label className="text-sm cursor-pointer">Side Ventilation</Label>
-                  <Switch 
-                    checked={config.sideVentilation}
-                    onCheckedChange={(v) => updateConfig('sideVentilation', v)}
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label className="text-sm cursor-pointer">Top Ventilation</Label>
-                  <Switch 
-                    checked={config.topVentilation}
-                    onCheckedChange={(v) => updateConfig('topVentilation', v)}
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label className="text-sm cursor-pointer">Insect Netting</Label>
-                  <Switch 
-                    checked={config.insectNet}
-                    onCheckedChange={(v) => updateConfig('insectNet', v)}
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label className="text-sm cursor-pointer">Fogging System</Label>
-                  <Switch 
-                    checked={config.foggers}
-                    onCheckedChange={(v) => updateConfig('foggers', v)}
-                  />
-                </div>
-                <div className="flex items-center justify-between py-2">
-                  <Label className="text-sm cursor-pointer">Exhaust Fans</Label>
-                  <Switch 
-                    checked={config.fans}
-                    onCheckedChange={(v) => updateConfig('fans', v)}
-                  />
+          {/* 3. POLYHOUSE TYPE */}
+          <section>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+              3. POLYHOUSE TYPE
+            </h3>
+            <RadioGroup
+              value={config.polyhouseType}
+              onValueChange={(v) => updateConfig('polyhouseType', v as any)}
+              className="space-y-3"
+            >
+              {POLYHOUSE_TYPES.map((type) => (
+                <label
+                  key={type.value}
+                  className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                    config.polyhouseType === type.value
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <RadioGroupItem value={type.value} className="mt-0.5" />
+                  <div>
+                    <div className="font-medium text-foreground">{type.label}</div>
+                    <div className="text-sm text-muted-foreground">{type.description}</div>
+                  </div>
+                </label>
+              ))}
+            </RadioGroup>
+          </section>
+
+          {/* 4. ROOF GEOMETRY */}
+          <section>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+              4. ROOF GEOMETRY
+            </h3>
+            <RadioGroup
+              value={config.roofType}
+              onValueChange={(v) => updateConfig('roofType', v as any)}
+              className="space-y-3"
+            >
+              {ROOF_TYPES.map((type) => (
+                <label
+                  key={type.value}
+                  className={`flex items-start gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
+                    config.roofType === type.value
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <RadioGroupItem value={type.value} className="mt-0.5" />
+                  <div>
+                    <div className="font-medium text-foreground">{type.label}</div>
+                    <div className="text-sm text-muted-foreground">{type.description}</div>
+                  </div>
+                </label>
+              ))}
+            </RadioGroup>
+          </section>
+
+          {/* 5. MATERIALS */}
+          <section>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+              5. MATERIALS
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm text-muted-foreground mb-2 block">Structure</Label>
+                <div className="flex flex-wrap gap-2">
+                  {STRUCTURE_MATERIALS.map((material) => (
+                    <Button
+                      key={material.value}
+                      type="button"
+                      variant={config.structureMaterial === material.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => updateConfig('structureMaterial', material.value as any)}
+                      className="px-4"
+                    >
+                      {material.label}
+                    </Button>
+                  ))}
                 </div>
               </div>
-            </AccordionContent>
-          </AccordionItem>
 
-          {/* Location Section */}
-          <AccordionItem value="location" className="border-b-0 mb-2">
-            <AccordionTrigger className="py-3 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors hover:no-underline">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">Location</span>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pt-3 pb-1">
-              <div className="space-y-3">
-                <div className="input-group">
-                  <Label>State</Label>
-                  <Select 
-                    value={config.state} 
-                    onValueChange={(v) => updateConfig('state', v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INDIAN_STATES.map((state) => (
-                        <SelectItem key={state} value={state}>
-                          {state}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="input-group">
-                  <Label>District</Label>
-                  <Input
-                    type="text"
-                    value={config.district}
-                    onChange={(e) => updateConfig('district', e.target.value)}
-                    placeholder="Enter district name"
-                  />
+              <div>
+                <Label className="text-sm text-muted-foreground mb-2 block">Covering</Label>
+                <div className="flex flex-wrap gap-2">
+                  {COVER_MATERIALS.map((material) => (
+                    <Button
+                      key={material.value}
+                      type="button"
+                      variant={config.coverMaterial === material.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => updateConfig('coverMaterial', material.value as any)}
+                      className="px-4"
+                    >
+                      {material.label}
+                    </Button>
+                  ))}
                 </div>
               </div>
-            </AccordionContent>
-          </AccordionItem>
+            </div>
+          </section>
 
-        </Accordion>
+          {/* 6. VENTILATION & ACCESS */}
+          <section>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+              6. VENTILATION & ACCESS
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Side Ventilation</Label>
+                <Select 
+                  value={config.sideVentilation} 
+                  onValueChange={(v) => updateConfig('sideVentilation', v as any)}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select Option" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SIDE_VENTILATION_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Door Entry</Label>
+                <Select 
+                  value={config.doorEntry} 
+                  onValueChange={(v) => updateConfig('doorEntry', v as any)}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select Option" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DOOR_ENTRY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </section>
+
+          {/* LOCATION & CLIMATE */}
+          <section>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
+              LOCATION & CLIMATE
+            </h3>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">State</Label>
+                <Select 
+                  value={config.state} 
+                  onValueChange={(v) => {
+                    updateConfig('state', v);
+                    updateConfig('district', '');
+                  }}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select State" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INDIAN_STATES.map((state) => (
+                      <SelectItem key={state} value={state}>
+                        {state}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">District</Label>
+                <Select 
+                  value={config.district} 
+                  onValueChange={(v) => updateConfig('district', v)}
+                  disabled={!config.state}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select District" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {districts.map((district) => (
+                      <SelectItem key={district} value={district}>
+                        {district}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </section>
+
+          {/* Validate Button */}
+          <Button className="w-full" size="lg">
+            Validate & Continue
+          </Button>
+
+        </div>
       </ScrollArea>
     </div>
   );

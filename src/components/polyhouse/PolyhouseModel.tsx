@@ -1,14 +1,101 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html, Line } from '@react-three/drei';
 import { PolyhouseConfig } from '@/types/polyhouse';
+import { useAnimatedValue, useAnimatedScale, lerp } from '@/hooks/useAnimations';
 import * as THREE from 'three';
 
 interface PolyhouseModelProps {
   config: PolyhouseConfig;
 }
 
-// Dimension label component
+// Animated mesh wrapper for smooth transitions
+function AnimatedMesh({ 
+  children, 
+  targetPosition, 
+  targetScale = [1, 1, 1],
+  delay = 0 
+}: { 
+  children: React.ReactNode;
+  targetPosition: [number, number, number];
+  targetScale?: [number, number, number];
+  delay?: number;
+}) {
+  const meshRef = useRef<THREE.Group>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  
+  useEffect(() => {
+    const timeout = setTimeout(() => setIsVisible(true), delay);
+    return () => clearTimeout(timeout);
+  }, [delay]);
+  
+  const animatedScale = useAnimatedScale(isVisible ? 1 : 0, 0.15);
+  
+  useFrame(() => {
+    if (meshRef.current) {
+      meshRef.current.position.x = lerp(meshRef.current.position.x, targetPosition[0], 0.1);
+      meshRef.current.position.y = lerp(meshRef.current.position.y, targetPosition[1], 0.1);
+      meshRef.current.position.z = lerp(meshRef.current.position.z, targetPosition[2], 0.1);
+      
+      meshRef.current.scale.x = lerp(meshRef.current.scale.x, targetScale[0] * animatedScale, 0.1);
+      meshRef.current.scale.y = lerp(meshRef.current.scale.y, targetScale[1] * animatedScale, 0.1);
+      meshRef.current.scale.z = lerp(meshRef.current.scale.z, targetScale[2] * animatedScale, 0.1);
+    }
+  });
+  
+  return (
+    <group ref={meshRef} position={[targetPosition[0], -2, targetPosition[2]]} scale={[0, 0, 0]}>
+      {children}
+    </group>
+  );
+}
+
+// Animated plant with swaying motion
+function AnimatedPlant({ 
+  position, 
+  plantHeight, 
+  delay 
+}: { 
+  position: [number, number, number]; 
+  plantHeight: number;
+  delay: number;
+}) {
+  const plantRef = useRef<THREE.Group>(null);
+  const randomOffset = useMemo(() => Math.random() * Math.PI * 2, []);
+  const randomSpeed = useMemo(() => 0.5 + Math.random() * 0.5, []);
+  const [visible, setVisible] = useState(false);
+  
+  useEffect(() => {
+    const timeout = setTimeout(() => setVisible(true), delay);
+    return () => clearTimeout(timeout);
+  }, [delay]);
+  
+  const scale = useAnimatedScale(visible ? 1 : 0, 0.08);
+  
+  useFrame((state) => {
+    if (plantRef.current) {
+      // Gentle swaying animation
+      const sway = Math.sin(state.clock.elapsedTime * randomSpeed + randomOffset) * 0.05;
+      plantRef.current.rotation.x = sway;
+      plantRef.current.rotation.z = Math.cos(state.clock.elapsedTime * randomSpeed * 0.7 + randomOffset) * 0.03;
+    }
+  });
+  
+  return (
+    <group ref={plantRef} position={position} scale={[scale, scale, scale]}>
+      <mesh position={[0, plantHeight / 2, 0]}>
+        <cylinderGeometry args={[0.02, 0.03, plantHeight, 6]} />
+        <meshStandardMaterial color="#228b22" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, plantHeight, 0]}>
+        <sphereGeometry args={[0.25 + Math.random() * 0.15, 8, 6]} />
+        <meshStandardMaterial color="#32cd32" roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
+// Dimension label with fade-in animation
 function DimensionLabel({ 
   position, 
   value, 
@@ -20,7 +107,7 @@ function DimensionLabel({
 }) {
   return (
     <Html position={position} center>
-      <div className="bg-background/90 backdrop-blur-sm border border-border rounded px-2 py-1 text-xs font-mono whitespace-nowrap shadow-lg">
+      <div className="bg-background/90 backdrop-blur-sm border border-border rounded px-2 py-1 text-xs font-mono whitespace-nowrap shadow-lg animate-fade-in">
         <span className="text-primary font-semibold">{value.toFixed(1)}</span>
         <span className="text-muted-foreground ml-0.5">{unit}</span>
       </div>
@@ -71,7 +158,7 @@ function DimensionLine({
   );
 }
 
-// Roll-up Side Ventilation
+// Animated side ventilation
 function SideVentilation({ 
   position, 
   length, 
@@ -83,12 +170,24 @@ function SideVentilation({
   height: number;
   ventType: 'manual-rollup' | 'motorized-rollup' | 'louver';
 }) {
+  const groupRef = useRef<THREE.Group>(null);
   const rollHeight = height * 0.4;
   
+  // Animate louver blades
+  useFrame((state) => {
+    if (groupRef.current && ventType === 'louver') {
+      const children = groupRef.current.children;
+      children.forEach((child, i) => {
+        if (child instanceof THREE.Mesh) {
+          child.rotation.x = 0.3 + Math.sin(state.clock.elapsedTime * 0.5 + i * 0.2) * 0.1;
+        }
+      });
+    }
+  });
+  
   return (
-    <group position={position}>
+    <group ref={groupRef} position={position}>
       {ventType === 'louver' ? (
-        // Louver vents
         <>
           {Array.from({ length: Math.floor(height / 0.3) }).map((_, i) => (
             <mesh key={i} position={[0, -height / 2 + 0.15 + i * 0.3, 0]} rotation={[0.3, 0, 0]}>
@@ -99,24 +198,20 @@ function SideVentilation({
         </>
       ) : (
         <>
-          {/* Rolled curtain at top */}
           <mesh position={[0, height / 2 - rollHeight / 2, 0]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.15, 0.15, length * 0.8, 16]} />
             <meshStandardMaterial color="#f5f5f5" />
           </mesh>
-          {/* Motor for motorized version */}
           {ventType === 'motorized-rollup' && (
             <mesh position={[0, height / 2 - rollHeight / 2, length * 0.45]}>
               <boxGeometry args={[0.2, 0.2, 0.3]} />
               <meshStandardMaterial color="#333333" metalness={0.8} roughness={0.3} />
             </mesh>
           )}
-          {/* Vent opening area */}
           <mesh position={[0, 0, 0]}>
             <boxGeometry args={[0.05, height - rollHeight, length * 0.8]} />
             <meshStandardMaterial color="#87ceeb" opacity={0.3} transparent />
           </mesh>
-          {/* Guide rails */}
           <mesh position={[0, 0, length * 0.42]}>
             <boxGeometry args={[0.04, height, 0.04]} />
             <meshStandardMaterial color="#666666" metalness={0.8} />
@@ -131,7 +226,7 @@ function SideVentilation({
   );
 }
 
-// Door Component with different types
+// Animated door
 function Door({ 
   position, 
   type,
@@ -141,14 +236,26 @@ function Door({
   type: 'single-sliding' | 'double-sliding' | 'roll-up' | 'curtain';
   frameMaterial: { color: string; metalness: number; roughness: number };
 }) {
+  const doorRef = useRef<THREE.Group>(null);
   const doorWidth = type === 'double-sliding' ? 2.4 : 1.2;
   const doorHeight = 2.2;
   
+  // Subtle door animation
+  useFrame((state) => {
+    if (doorRef.current && type === 'curtain') {
+      const children = doorRef.current.children;
+      children.forEach((child, i) => {
+        if (child instanceof THREE.Mesh && i > 0) {
+          child.position.x += Math.sin(state.clock.elapsedTime * 2 + i * 0.5) * 0.001;
+        }
+      });
+    }
+  });
+  
   return (
-    <group position={position}>
+    <group ref={doorRef} position={position}>
       {type === 'double-sliding' ? (
         <>
-          {/* Double sliding doors */}
           <mesh position={[-doorWidth / 4, doorHeight / 2, 0.08]}>
             <boxGeometry args={[doorWidth / 2 - 0.05, doorHeight, 0.06]} />
             <meshStandardMaterial color="#1a1a2e" metalness={0.6} roughness={0.3} />
@@ -157,7 +264,6 @@ function Door({
             <boxGeometry args={[doorWidth / 2 - 0.05, doorHeight, 0.06]} />
             <meshStandardMaterial color="#1a1a2e" metalness={0.6} roughness={0.3} />
           </mesh>
-          {/* Glass panels */}
           <mesh position={[-doorWidth / 4, doorHeight / 2 + 0.2, 0.12]}>
             <boxGeometry args={[doorWidth / 2 - 0.2, doorHeight * 0.6, 0.02]} />
             <meshStandardMaterial color="#a8d8ea" opacity={0.4} transparent />
@@ -169,12 +275,10 @@ function Door({
         </>
       ) : type === 'roll-up' ? (
         <>
-          {/* Roll-up door */}
           <mesh position={[0, doorHeight + 0.2, 0.1]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.2, 0.2, doorWidth, 16]} />
             <meshStandardMaterial color="#666666" metalness={0.7} roughness={0.3} />
           </mesh>
-          {/* Open area */}
           <mesh position={[0, doorHeight / 2, 0.05]}>
             <boxGeometry args={[doorWidth, doorHeight, 0.02]} />
             <meshStandardMaterial color="#87ceeb" opacity={0.2} transparent />
@@ -182,12 +286,10 @@ function Door({
         </>
       ) : type === 'curtain' ? (
         <>
-          {/* Curtain door */}
           <mesh position={[0, doorHeight / 2, 0.1]}>
             <boxGeometry args={[doorWidth + 0.3, doorHeight, 0.02]} />
             <meshStandardMaterial color="#f5f5f5" opacity={0.7} transparent />
           </mesh>
-          {/* Curtain folds */}
           {Array.from({ length: 8 }).map((_, i) => (
             <mesh key={i} position={[-doorWidth / 2 + 0.15 + i * (doorWidth / 7), doorHeight / 2, 0.12]}>
               <boxGeometry args={[0.02, doorHeight, 0.02]} />
@@ -197,24 +299,20 @@ function Door({
         </>
       ) : (
         <>
-          {/* Single sliding door */}
           <mesh position={[0, doorHeight / 2, 0.1]}>
             <boxGeometry args={[doorWidth, doorHeight, 0.08]} />
             <meshStandardMaterial color="#8b4513" roughness={0.7} />
           </mesh>
-          {/* Door handle */}
           <mesh position={[doorWidth / 2 - 0.15, doorHeight / 2, 0.18]}>
             <boxGeometry args={[0.05, 0.15, 0.06]} />
             <meshStandardMaterial color="#c0c0c0" metalness={0.9} roughness={0.2} />
           </mesh>
-          {/* Track */}
           <mesh position={[0, doorHeight + 0.1, 0.1]}>
             <boxGeometry args={[doorWidth + 0.5, 0.08, 0.06]} />
             <meshStandardMaterial color="#666666" metalness={0.8} />
           </mesh>
         </>
       )}
-      {/* Door frame */}
       <mesh position={[0, doorHeight / 2, 0.05]}>
         <boxGeometry args={[doorWidth + 0.2, doorHeight + 0.15, 0.04]} />
         <meshStandardMaterial {...frameMaterial} />
@@ -223,16 +321,23 @@ function Door({
   );
 }
 
-// Climate Control Unit
+// Animated climate control unit with pulsing LED
 function ClimateControlUnit({ position }: { position: [number, number, number] }) {
+  const ledRef = useRef<THREE.Mesh>(null);
+  
+  useFrame((state) => {
+    if (ledRef.current) {
+      const pulse = Math.sin(state.clock.elapsedTime * 3) * 0.5 + 0.5;
+      (ledRef.current.material as THREE.MeshBasicMaterial).opacity = 0.5 + pulse * 0.5;
+    }
+  });
+  
   return (
     <group position={position}>
-      {/* Main unit */}
       <mesh>
         <boxGeometry args={[1.5, 2, 0.8]} />
         <meshStandardMaterial color="#e0e0e0" metalness={0.5} roughness={0.4} />
       </mesh>
-      {/* Vent grills */}
       <mesh position={[0, 0.5, 0.41]}>
         <boxGeometry args={[1.2, 0.6, 0.02]} />
         <meshStandardMaterial color="#333333" />
@@ -241,21 +346,19 @@ function ClimateControlUnit({ position }: { position: [number, number, number] }
         <boxGeometry args={[1.2, 0.6, 0.02]} />
         <meshStandardMaterial color="#333333" />
       </mesh>
-      {/* Control panel */}
       <mesh position={[0, 0, 0.41]}>
         <boxGeometry args={[0.4, 0.25, 0.02]} />
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
-      {/* Status LED */}
-      <mesh position={[0.1, 0, 0.43]}>
+      <mesh ref={ledRef} position={[0.1, 0, 0.43]}>
         <sphereGeometry args={[0.02, 8, 8]} />
-        <meshBasicMaterial color="#00ff00" />
+        <meshBasicMaterial color="#00ff00" transparent />
       </mesh>
     </group>
   );
 }
 
-// Shade Net Structure (for shade-net type)
+// Animated shade net with wave effect
 function ShadeNetStructure({ 
   width, 
   length, 
@@ -265,14 +368,20 @@ function ShadeNetStructure({
   length: number; 
   height: number;
 }) {
+  const netRef = useRef<THREE.Mesh>(null);
+  
+  useFrame((state) => {
+    if (netRef.current) {
+      netRef.current.position.y = height - 0.1 + Math.sin(state.clock.elapsedTime * 0.5) * 0.02;
+    }
+  });
+  
   return (
     <group>
-      {/* Shade net covering */}
-      <mesh position={[0, height - 0.1, 0]}>
+      <mesh ref={netRef} position={[0, height - 0.1, 0]}>
         <boxGeometry args={[width, 0.02, length]} />
         <meshStandardMaterial color="#2d5a27" opacity={0.6} transparent wireframe={false} />
       </mesh>
-      {/* Net pattern overlay */}
       <mesh position={[0, height - 0.05, 0]}>
         <boxGeometry args={[width, 0.01, length]} />
         <meshStandardMaterial color="#1a3d15" opacity={0.4} transparent />
@@ -283,15 +392,32 @@ function ShadeNetStructure({
 
 export function PolyhouseModel({ config }: PolyhouseModelProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const prevConfigRef = useRef(config);
+  const [entranceComplete, setEntranceComplete] = useState(false);
   
   const { 
     length, width, gutterHeight, ridgeHeight, roofType, coverMaterial,
     structureMaterial, polyhouseType, sideVentilation, doorEntry
   } = config;
+
+  // Smooth animated dimensions
+  const animatedLength = useAnimatedValue(length, 0.06);
+  const animatedWidth = useAnimatedValue(width, 0.06);
+  const animatedGutterHeight = useAnimatedValue(gutterHeight, 0.06);
+  const animatedRidgeHeight = useAnimatedValue(ridgeHeight, 0.06);
   
-  const roofHeight = ridgeHeight - gutterHeight;
-  const halfWidth = width / 2;
-  const halfLength = length / 2;
+  const roofHeight = animatedRidgeHeight - animatedGutterHeight;
+  const halfWidth = animatedWidth / 2;
+  const halfLength = animatedLength / 2;
+
+  // Entrance animation
+  useEffect(() => {
+    const timeout = setTimeout(() => setEntranceComplete(true), 500);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  // Main group animation
+  const entranceScale = useAnimatedScale(entranceComplete ? 1 : 0, 0.08);
 
   // Get cover material properties
   const coverProps = useMemo(() => {
@@ -321,13 +447,12 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
     }
   }, [structureMaterial]);
 
-  // Create roof geometry
+  // Create roof geometry with animated dimensions
   const roofGeometry = useMemo(() => {
     const shape = new THREE.Shape();
     
     switch (roofType) {
       case 'flat': {
-        // Slight slope for drainage
         shape.moveTo(-halfWidth, 0);
         shape.lineTo(-halfWidth, roofHeight * 0.1);
         shape.lineTo(halfWidth, roofHeight * 0.1);
@@ -347,7 +472,7 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
         shape.moveTo(-halfWidth, 0);
         for (let i = 1; i <= segments; i++) {
           const t = i / segments;
-          const x = -halfWidth + width * t;
+          const x = -halfWidth + animatedWidth * t;
           const y = roofHeight * Math.sin(Math.PI * t);
           shape.lineTo(x, y);
         }
@@ -363,31 +488,30 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
     }
     
     const extrudeSettings = {
-      depth: length,
+      depth: animatedLength,
       bevelEnabled: false,
     };
     
     return new THREE.ExtrudeGeometry(shape, extrudeSettings);
-  }, [roofType, halfWidth, roofHeight, width, length]);
+  }, [roofType, halfWidth, roofHeight, animatedWidth, animatedLength]);
 
   // End wall geometry
   const endWallGeometry = useMemo(() => {
     const shape = new THREE.Shape();
     shape.moveTo(-halfWidth, 0);
-    shape.lineTo(-halfWidth, gutterHeight);
+    shape.lineTo(-halfWidth, animatedGutterHeight);
     
     if (roofType === 'flat') {
-      shape.lineTo(halfWidth, gutterHeight + roofHeight * 0.1);
+      shape.lineTo(halfWidth, animatedGutterHeight + roofHeight * 0.1);
     } else if (roofType === 'gable') {
-      shape.lineTo(0, ridgeHeight);
-      shape.lineTo(halfWidth, gutterHeight);
+      shape.lineTo(0, animatedRidgeHeight);
+      shape.lineTo(halfWidth, animatedGutterHeight);
     } else {
-      // Gothic - approximate arc
       const segments = 10;
       for (let i = 0; i <= segments; i++) {
         const t = i / segments;
-        const x = -halfWidth + width * t;
-        const y = gutterHeight + roofHeight * Math.sin(Math.PI * t);
+        const x = -halfWidth + animatedWidth * t;
+        const y = animatedGutterHeight + roofHeight * Math.sin(Math.PI * t);
         shape.lineTo(x, y);
       }
     }
@@ -396,37 +520,54 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
     shape.closePath();
     
     return new THREE.ShapeGeometry(shape);
-  }, [roofType, halfWidth, gutterHeight, ridgeHeight, roofHeight, width]);
+  }, [roofType, halfWidth, animatedGutterHeight, animatedRidgeHeight, roofHeight, animatedWidth]);
 
-  // Gentle rotation
+  // Gentle rotation and breathing animation
   useFrame((state) => {
     if (groupRef.current) {
+      // Gentle rotation
       groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.08) * 0.03;
+      // Subtle breathing scale
+      const breath = 1 + Math.sin(state.clock.elapsedTime * 0.3) * 0.002;
+      groupRef.current.scale.setScalar(entranceScale * breath);
     }
   });
 
   // Calculate post positions
   const postSpacing = 4;
-  const numSidePosts = Math.max(2, Math.floor(length / postSpacing) + 1);
+  const numSidePosts = Math.max(2, Math.floor(animatedLength / postSpacing) + 1);
 
   // Is bamboo structure
   const isBamboo = structureMaterial === 'bamboo';
+
+  // Generate stable plant data
+  const plantData = useMemo(() => {
+    const plants: { x: number; z: number; height: number }[] = [];
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < Math.floor(length / 2.5); col++) {
+        const x = -halfWidth * 0.7 + row * (width * 0.7 / 3);
+        const z = -halfLength * 0.8 + col * 2.5;
+        plants.push({ x, z, height: 0.3 + Math.random() * 0.4 });
+      }
+    }
+    return plants;
+  }, [length, width, halfWidth, halfLength]);
 
   return (
     <group ref={groupRef} position={[0, 0, 0]}>
       {/* Ground/Foundation */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
-        <planeGeometry args={[width + 10, length + 10]} />
+        <planeGeometry args={[animatedWidth + 10, animatedLength + 10]} />
         <meshStandardMaterial color="#6b5b47" roughness={0.9} />
       </mesh>
       
       {/* Concrete foundation border */}
       <mesh position={[0, 0.05, 0]} receiveShadow>
-        <boxGeometry args={[width + 0.4, 0.15, length + 0.4]} />
+        <boxGeometry args={[animatedWidth + 0.4, 0.15, animatedLength + 0.4]} />
         <meshStandardMaterial color="#9e9e9e" roughness={0.8} />
       </mesh>
       <mesh position={[0, 0.05, 0]} receiveShadow>
-        <boxGeometry args={[width - 0.2, 0.2, length - 0.2]} />
+        <boxGeometry args={[animatedWidth - 0.2, 0.2, animatedLength - 0.2]} />
         <meshStandardMaterial color="#6b5b47" roughness={0.9} />
       </mesh>
 
@@ -446,13 +587,13 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
         />
         <DimensionLine
           start={[halfWidth + 2, 0, halfLength + 2]}
-          end={[halfWidth + 2, gutterHeight, halfLength + 2]}
+          end={[halfWidth + 2, animatedGutterHeight, halfLength + 2]}
           value={gutterHeight}
           color="#f59e0b"
         />
         <DimensionLine
           start={[halfWidth + 4, 0, halfLength + 2]}
-          end={[halfWidth + 4, ridgeHeight, halfLength + 2]}
+          end={[halfWidth + 4, animatedRidgeHeight, halfLength + 2]}
           value={ridgeHeight}
           color="#ef4444"
         />
@@ -467,24 +608,24 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
           [-halfWidth, halfLength],
           [halfWidth, halfLength],
         ].map(([x, z], i) => (
-          <mesh key={`corner-${i}`} position={[x, gutterHeight / 2, z]} castShadow>
-            <cylinderGeometry args={[isBamboo ? 0.05 : 0.08, isBamboo ? 0.06 : 0.08, gutterHeight, isBamboo ? 8 : 12]} />
+          <mesh key={`corner-${i}`} position={[x, animatedGutterHeight / 2, z]} castShadow>
+            <cylinderGeometry args={[isBamboo ? 0.05 : 0.08, isBamboo ? 0.06 : 0.08, animatedGutterHeight, isBamboo ? 8 : 12]} />
             <meshStandardMaterial {...frameMaterial} />
           </mesh>
         ))}
 
         {/* Side posts along length */}
         {Array.from({ length: numSidePosts }).map((_, i) => {
-          const z = -halfLength + (i * length) / (numSidePosts - 1);
+          const z = -halfLength + (i * animatedLength) / (numSidePosts - 1);
           if (i === 0 || i === numSidePosts - 1) return null;
           return (
             <group key={`side-posts-${i}`}>
-              <mesh position={[-halfWidth, gutterHeight / 2, z]} castShadow>
-                <cylinderGeometry args={[isBamboo ? 0.04 : 0.06, isBamboo ? 0.05 : 0.06, gutterHeight, 8]} />
+              <mesh position={[-halfWidth, animatedGutterHeight / 2, z]} castShadow>
+                <cylinderGeometry args={[isBamboo ? 0.04 : 0.06, isBamboo ? 0.05 : 0.06, animatedGutterHeight, 8]} />
                 <meshStandardMaterial {...frameMaterial} />
               </mesh>
-              <mesh position={[halfWidth, gutterHeight / 2, z]} castShadow>
-                <cylinderGeometry args={[isBamboo ? 0.04 : 0.06, isBamboo ? 0.05 : 0.06, gutterHeight, 8]} />
+              <mesh position={[halfWidth, animatedGutterHeight / 2, z]} castShadow>
+                <cylinderGeometry args={[isBamboo ? 0.04 : 0.06, isBamboo ? 0.05 : 0.06, animatedGutterHeight, 8]} />
                 <meshStandardMaterial {...frameMaterial} />
               </mesh>
             </group>
@@ -492,51 +633,51 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
         })}
 
         {/* Top horizontal beams */}
-        <mesh position={[-halfWidth, gutterHeight, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[isBamboo ? 0.04 : 0.05, isBamboo ? 0.04 : 0.05, length, 8]} />
+        <mesh position={[-halfWidth, animatedGutterHeight, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[isBamboo ? 0.04 : 0.05, isBamboo ? 0.04 : 0.05, animatedLength, 8]} />
           <meshStandardMaterial {...frameMaterial} />
         </mesh>
-        <mesh position={[halfWidth, gutterHeight, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[isBamboo ? 0.04 : 0.05, isBamboo ? 0.04 : 0.05, length, 8]} />
+        <mesh position={[halfWidth, animatedGutterHeight, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[isBamboo ? 0.04 : 0.05, isBamboo ? 0.04 : 0.05, animatedLength, 8]} />
           <meshStandardMaterial {...frameMaterial} />
         </mesh>
         
         {/* Ridge beam (for gable and gothic) */}
         {(roofType === 'gable' || roofType === 'gothic') && (
-          <mesh position={[0, ridgeHeight, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-            <cylinderGeometry args={[isBamboo ? 0.05 : 0.06, isBamboo ? 0.05 : 0.06, length, 8]} />
+          <mesh position={[0, animatedRidgeHeight, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <cylinderGeometry args={[isBamboo ? 0.05 : 0.06, isBamboo ? 0.05 : 0.06, animatedLength, 8]} />
             <meshStandardMaterial {...frameMaterial} />
           </mesh>
         )}
 
         {/* Cross beams at ends */}
-        <mesh position={[0, gutterHeight, -halfLength]} rotation={[0, 0, Math.PI / 2]} castShadow>
-          <cylinderGeometry args={[isBamboo ? 0.04 : 0.05, isBamboo ? 0.04 : 0.05, width, 8]} />
+        <mesh position={[0, animatedGutterHeight, -halfLength]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[isBamboo ? 0.04 : 0.05, isBamboo ? 0.04 : 0.05, animatedWidth, 8]} />
           <meshStandardMaterial {...frameMaterial} />
         </mesh>
-        <mesh position={[0, gutterHeight, halfLength]} rotation={[0, 0, Math.PI / 2]} castShadow>
-          <cylinderGeometry args={[isBamboo ? 0.04 : 0.05, isBamboo ? 0.04 : 0.05, width, 8]} />
+        <mesh position={[0, animatedGutterHeight, halfLength]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[isBamboo ? 0.04 : 0.05, isBamboo ? 0.04 : 0.05, animatedWidth, 8]} />
           <meshStandardMaterial {...frameMaterial} />
         </mesh>
 
         {/* Roof trusses/rafters */}
         {Array.from({ length: numSidePosts }).map((_, i) => {
-          const z = -halfLength + (i * length) / (numSidePosts - 1);
+          const z = -halfLength + (i * animatedLength) / (numSidePosts - 1);
           if (roofType === 'gable') {
             return (
               <group key={`truss-${i}`}>
                 <Line
                   points={[
-                    [-halfWidth, gutterHeight, z],
-                    [0, ridgeHeight, z],
+                    [-halfWidth, animatedGutterHeight, z],
+                    [0, animatedRidgeHeight, z],
                   ]}
                   color={frameMaterial.color}
                   lineWidth={3}
                 />
                 <Line
                   points={[
-                    [halfWidth, gutterHeight, z],
-                    [0, ridgeHeight, z],
+                    [halfWidth, animatedGutterHeight, z],
+                    [0, animatedRidgeHeight, z],
                   ]}
                   color={frameMaterial.color}
                   lineWidth={3}
@@ -550,12 +691,12 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
         {/* Side walls (cover material) - only for non-shade-net types */}
         {polyhouseType !== 'shade-net' && (
           <>
-            <mesh position={[-halfWidth - 0.01, gutterHeight / 2, 0]}>
-              <boxGeometry args={[0.02, gutterHeight, length]} />
+            <mesh position={[-halfWidth - 0.01, animatedGutterHeight / 2, 0]}>
+              <boxGeometry args={[0.02, animatedGutterHeight, animatedLength]} />
               <meshStandardMaterial {...coverProps} side={THREE.DoubleSide} />
             </mesh>
-            <mesh position={[halfWidth + 0.01, gutterHeight / 2, 0]}>
-              <boxGeometry args={[0.02, gutterHeight, length]} />
+            <mesh position={[halfWidth + 0.01, animatedGutterHeight / 2, 0]}>
+              <boxGeometry args={[0.02, animatedGutterHeight, animatedLength]} />
               <meshStandardMaterial {...coverProps} side={THREE.DoubleSide} />
             </mesh>
           </>
@@ -563,7 +704,7 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
 
         {/* Shade net covering for shade-net type */}
         {polyhouseType === 'shade-net' && (
-          <ShadeNetStructure width={width} length={length} height={ridgeHeight} />
+          <ShadeNetStructure width={animatedWidth} length={animatedLength} height={animatedRidgeHeight} />
         )}
 
         {/* End walls */}
@@ -582,7 +723,7 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
         {polyhouseType !== 'shade-net' && (
           <mesh 
             geometry={roofGeometry} 
-            position={[0, gutterHeight, -halfLength]}
+            position={[0, animatedGutterHeight, -halfLength]}
             castShadow
             receiveShadow
           >
@@ -591,12 +732,12 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
         )}
 
         {/* Gutters */}
-        <mesh position={[-halfWidth - 0.15, gutterHeight - 0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.08, 0.08, length, 8, 1, true, 0, Math.PI]} />
+        <mesh position={[-halfWidth - 0.15, animatedGutterHeight - 0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.08, 0.08, animatedLength, 8, 1, true, 0, Math.PI]} />
           <meshStandardMaterial color="#666666" metalness={0.7} roughness={0.3} side={THREE.DoubleSide} />
         </mesh>
-        <mesh position={[halfWidth + 0.15, gutterHeight - 0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.08, 0.08, length, 8, 1, true, Math.PI, Math.PI]} />
+        <mesh position={[halfWidth + 0.15, animatedGutterHeight - 0.1, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.08, 0.08, animatedLength, 8, 1, true, Math.PI, Math.PI]} />
           <meshStandardMaterial color="#666666" metalness={0.7} roughness={0.3} side={THREE.DoubleSide} />
         </mesh>
       </group>
@@ -605,15 +746,15 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
       {sideVentilation !== 'none' && (
         <>
           <SideVentilation 
-            position={[-halfWidth - 0.1, gutterHeight * 0.5, 0]} 
-            length={length} 
-            height={gutterHeight * 0.5}
+            position={[-halfWidth - 0.1, animatedGutterHeight * 0.5, 0]} 
+            length={animatedLength} 
+            height={animatedGutterHeight * 0.5}
             ventType={sideVentilation}
           />
           <SideVentilation 
-            position={[halfWidth + 0.1, gutterHeight * 0.5, 0]} 
-            length={length} 
-            height={gutterHeight * 0.5}
+            position={[halfWidth + 0.1, animatedGutterHeight * 0.5, 0]} 
+            length={animatedLength} 
+            height={animatedGutterHeight * 0.5}
             ventType={sideVentilation}
           />
         </>
@@ -631,42 +772,31 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
       <group>
         {/* Growing beds/rows */}
         {Array.from({ length: 4 }).map((_, i) => {
-          const x = -halfWidth * 0.7 + i * (width * 0.7 / 3);
+          const x = -halfWidth * 0.7 + i * (animatedWidth * 0.7 / 3);
           return (
             <mesh key={`bed-${i}`} position={[x, 0.15, 0]} receiveShadow>
-              <boxGeometry args={[width * 0.15, 0.3, length * 0.85]} />
+              <boxGeometry args={[animatedWidth * 0.15, 0.3, animatedLength * 0.85]} />
               <meshStandardMaterial color="#3d2817" roughness={0.95} />
             </mesh>
           );
         })}
 
-        {/* Plants */}
-        {Array.from({ length: 4 }).map((_, row) => 
-          Array.from({ length: Math.floor(length / 2.5) }).map((_, col) => {
-            const x = -halfWidth * 0.7 + row * (width * 0.7 / 3);
-            const z = -halfLength * 0.8 + col * 2.5;
-            const plantHeight = 0.3 + Math.random() * 0.4;
-            return (
-              <group key={`plant-${row}-${col}`} position={[x, 0.3, z]}>
-                <mesh position={[0, plantHeight / 2, 0]}>
-                  <cylinderGeometry args={[0.02, 0.03, plantHeight, 6]} />
-                  <meshStandardMaterial color="#228b22" roughness={0.8} />
-                </mesh>
-                <mesh position={[0, plantHeight, 0]}>
-                  <sphereGeometry args={[0.25 + Math.random() * 0.15, 8, 6]} />
-                  <meshStandardMaterial color="#32cd32" roughness={0.9} />
-                </mesh>
-              </group>
-            );
-          })
-        )}
+        {/* Animated Plants */}
+        {plantData.map((plant, i) => (
+          <AnimatedPlant
+            key={`plant-${i}`}
+            position={[plant.x, 0.3, plant.z]}
+            plantHeight={plant.height}
+            delay={800 + i * 30}
+          />
+        ))}
 
         {/* Irrigation lines */}
         {Array.from({ length: 4 }).map((_, i) => {
-          const x = -halfWidth * 0.7 + i * (width * 0.7 / 3);
+          const x = -halfWidth * 0.7 + i * (animatedWidth * 0.7 / 3);
           return (
             <mesh key={`irrigation-${i}`} position={[x, 0.35, 0]} rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.015, 0.015, length * 0.85, 8]} />
+              <cylinderGeometry args={[0.015, 0.015, animatedLength * 0.85, 8]} />
               <meshStandardMaterial color="#1a1a1a" roughness={0.6} />
             </mesh>
           );
@@ -681,15 +811,15 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
       />
 
       {/* Polyhouse Type Label */}
-      <Html position={[0, ridgeHeight + 2, 0]} center>
-        <div className="bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium shadow-lg capitalize whitespace-nowrap">
+      <Html position={[0, animatedRidgeHeight + 2, 0]} center>
+        <div className="bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-full text-xs font-medium shadow-lg capitalize whitespace-nowrap animate-fade-in">
           {polyhouseType.replace(/-/g, ' ')}
         </div>
       </Html>
 
       {/* Material indicator */}
-      <Html position={[-halfWidth - 1, gutterHeight + 1, 0]} center>
-        <div className="bg-muted/90 text-foreground px-2 py-1 rounded text-[10px] font-medium shadow whitespace-nowrap">
+      <Html position={[-halfWidth - 1, animatedGutterHeight + 1, 0]} center>
+        <div className="bg-muted/90 text-foreground px-2 py-1 rounded text-[10px] font-medium shadow whitespace-nowrap animate-fade-in">
           {structureMaterial === 'gi-steel' ? 'GI Steel' : 
            structureMaterial === 'aluminium' ? 'Aluminium' : 'Bamboo'} Frame
         </div>

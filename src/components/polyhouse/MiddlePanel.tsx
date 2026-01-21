@@ -1,10 +1,11 @@
-import { Suspense } from 'react';
+import { Suspense, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Environment, Grid, Html } from '@react-three/drei';
+import { OrbitControls, PerspectiveCamera, Grid, Html } from '@react-three/drei';
 import { Box, RotateCcw, ZoomIn, ZoomOut, Move3D } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PolyhouseConfig } from '@/types/polyhouse';
 import { PolyhouseModel } from './PolyhouseModel';
+import { CameraController } from './CameraController';
 
 interface MiddlePanelProps {
   config: PolyhouseConfig;
@@ -19,6 +20,62 @@ function LoadingFallback() {
         <span className="text-sm text-muted-foreground">Loading 3D Model...</span>
       </div>
     </Html>
+  );
+}
+
+// Scene component to access Three.js context
+function Scene({ config }: { config: PolyhouseConfig }) {
+  const orbitControlsRef = useRef<any>(null);
+  
+  return (
+    <>
+      <PerspectiveCamera 
+        makeDefault 
+        position={[config.width * 1.5, config.ridgeHeight * 2, config.length * 1.2]} 
+        fov={45}
+      />
+      <OrbitControls 
+        ref={orbitControlsRef}
+        enablePan={true}
+        enableZoom={true}
+        enableRotate={true}
+        minDistance={10}
+        maxDistance={200}
+        maxPolarAngle={Math.PI / 2 - 0.1}
+      />
+      <CameraController config={config} orbitControlsRef={orbitControlsRef} />
+      
+      {/* Lighting */}
+      <ambientLight intensity={0.5} />
+      <directionalLight
+        position={[50, 50, 25]}
+        intensity={1.2}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+      />
+      <directionalLight position={[-30, 30, -25]} intensity={0.4} />
+      
+      {/* Environment */}
+      <fog attach="fog" args={['#e8ebe8', 100, 300]} />
+      
+      {/* Grid */}
+      <Grid
+        position={[0, -0.02, 0]}
+        args={[200, 200]}
+        cellSize={2}
+        cellThickness={0.5}
+        cellColor="#9ca3af"
+        sectionSize={10}
+        sectionThickness={1}
+        sectionColor="#6b7280"
+        fadeDistance={150}
+        fadeStrength={1}
+      />
+
+      {/* The Polyhouse */}
+      <PolyhouseModel config={config} />
+    </>
   );
 }
 
@@ -69,50 +126,7 @@ export function MiddlePanel({ config, onDimensionEdit }: MiddlePanelProps) {
       <div className="flex-1 canvas-container relative">
         <Canvas shadows>
           <Suspense fallback={<LoadingFallback />}>
-            <PerspectiveCamera 
-              makeDefault 
-              position={[config.width * 1.5, config.ridgeHeight * 2, config.length * 1.2]} 
-              fov={45}
-            />
-            <OrbitControls 
-              enablePan={true}
-              enableZoom={true}
-              enableRotate={true}
-              minDistance={10}
-              maxDistance={200}
-              maxPolarAngle={Math.PI / 2 - 0.1}
-            />
-            
-            {/* Lighting */}
-            <ambientLight intensity={0.5} />
-            <directionalLight
-              position={[50, 50, 25]}
-              intensity={1.2}
-              castShadow
-              shadow-mapSize-width={2048}
-              shadow-mapSize-height={2048}
-            />
-            <directionalLight position={[-30, 30, -25]} intensity={0.4} />
-            
-            {/* Environment */}
-            <fog attach="fog" args={['#e8ebe8', 100, 300]} />
-            
-            {/* Grid */}
-            <Grid
-              position={[0, -0.02, 0]}
-              args={[200, 200]}
-              cellSize={2}
-              cellThickness={0.5}
-              cellColor="#9ca3af"
-              sectionSize={10}
-              sectionThickness={1}
-              sectionColor="#6b7280"
-              fadeDistance={150}
-              fadeStrength={1}
-            />
-
-            {/* The Polyhouse */}
-            <PolyhouseModel config={config} />
+            <Scene config={config} />
           </Suspense>
         </Canvas>
 

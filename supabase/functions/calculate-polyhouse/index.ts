@@ -29,10 +29,31 @@ const CLIMATE_DATA: Record<string, { zone: string; temp: number; humidity: numbe
   'Uttarakhand': { zone: 'Subtropical Highland', temp: 20, humidity: 65, rainfall: 1600, factor: 1.2 },
 };
 
-// Base costs per sqm in INR
-const STRUCTURE_COSTS = { 'gi-pipe': 350, 'ms-pipe': 280, 'aluminum': 550 };
-const COVER_COSTS = { 'polyethylene': 80, 'polycarbonate': 350, 'shade-net': 45, 'glass': 800 };
-const TYPE_MULTIPLIERS = { 'naturally-ventilated': 1.0, 'fan-and-pad': 1.35, 'climate-controlled': 1.8 };
+// Base costs per sqm in INR - updated to match new material options
+const STRUCTURE_COSTS: Record<string, number> = { 
+  'gi-steel': 350, 
+  'aluminium': 550,
+  'bamboo': 180 
+};
+
+const COVER_COSTS: Record<string, number> = { 
+  'uv-polyfilm': 80, 
+  'shade-net': 45, 
+  'insect-net': 55 
+};
+
+const TYPE_MULTIPLIERS: Record<string, number> = { 
+  'naturally-ventilated': 1.0, 
+  'climate-controlled': 1.8, 
+  'shade-net': 0.7 
+};
+
+const VENTILATION_COSTS: Record<string, number> = {
+  'none': 0,
+  'manual-rollup': 800,
+  'motorized-rollup': 2500,
+  'louver': 1800
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -41,10 +62,25 @@ serve(async (req) => {
 
   try {
     const config = await req.json();
-    const { length, width, eaveHeight, ridgeHeight, polyhouseType, roofType, structureMaterial, coverMaterial, sideVentilation, topVentilation, insectNet, foggers, fans, state } = config;
+    console.log('Received config:', JSON.stringify(config));
+    
+    const { 
+      length, 
+      width, 
+      gutterHeight, 
+      ridgeHeight, 
+      polyhouseType, 
+      roofType, 
+      structureMaterial, 
+      coverMaterial, 
+      sideVentilation, 
+      doorEntry,
+      state 
+    } = config;
 
+    // Calculate basic dimensions
     const area = length * width;
-    const avgHeight = (eaveHeight + ridgeHeight) / 2;
+    const avgHeight = (gutterHeight + ridgeHeight) / 2;
     const volume = area * avgHeight;
     const perimeter = 2 * (length + width);
 
@@ -56,6 +92,7 @@ serve(async (req) => {
     if (climateInfo.humidity > 75) advisories.push('High humidity - ensure adequate ventilation to prevent fungal diseases');
     if (climateInfo.rainfall > 2000) advisories.push('Heavy rainfall region - reinforce roof structure and drainage');
     if (climateInfo.zone.includes('Arid')) advisories.push('Arid climate - fogging systems highly recommended');
+    if (polyhouseType === 'shade-net') advisories.push('Shade net houses provide basic protection - ideal for nurseries and hardier crops');
 
     const climate = {
       climateZone: climateInfo.zone,
@@ -66,27 +103,38 @@ serve(async (req) => {
       advisories,
     };
 
-    // Cost calculation
-    const structureBase = STRUCTURE_COSTS[structureMaterial as keyof typeof STRUCTURE_COSTS] || 350;
-    const coverBase = COVER_COSTS[coverMaterial as keyof typeof COVER_COSTS] || 80;
-    const typeMultiplier = TYPE_MULTIPLIERS[polyhouseType as keyof typeof TYPE_MULTIPLIERS] || 1.0;
+    // Cost calculation with proper fallbacks
+    const structureBase = STRUCTURE_COSTS[structureMaterial] || 350;
+    const coverBase = COVER_COSTS[coverMaterial] || 80;
+    const typeMultiplier = TYPE_MULTIPLIERS[polyhouseType] || 1.0;
+
+    console.log('Cost bases:', { structureBase, coverBase, typeMultiplier });
 
     const structureCost = Math.round(area * structureBase * typeMultiplier);
+    
+    // Wall and roof area calculations
     const wallArea = perimeter * avgHeight;
-    const roofArea = area * (roofType === 'gothic' || roofType === 'quonset' ? 1.2 : 1.1);
+    const roofMultiplier = roofType === 'gothic' ? 1.25 : roofType === 'gable' ? 1.15 : 1.05;
+    const roofArea = area * roofMultiplier;
     const coverCost = Math.round((wallArea + roofArea) * coverBase);
     
-    let ventilationCost = 0;
-    if (sideVentilation) ventilationCost += perimeter * 800;
-    if (topVentilation) ventilationCost += length * 1200;
-    if (insectNet) ventilationCost += (wallArea + roofArea) * 35;
-    if (foggers) ventilationCost += area * 150;
-    if (fans) ventilationCost += Math.ceil(area / 50) * 8000;
-    ventilationCost = Math.round(ventilationCost);
+    // Ventilation cost
+    const ventilationBase = VENTILATION_COSTS[sideVentilation] || 0;
+    let ventilationCost = Math.round(perimeter * ventilationBase);
+    
+    // Add door cost
+    const doorCosts: Record<string, number> = {
+      'single-sliding': 8000,
+      'double-sliding': 15000,
+      'roll-up': 12000,
+      'curtain': 5000
+    };
+    ventilationCost += doorCosts[doorEntry] || 8000;
 
+    // Other costs
     const foundationCost = Math.round(perimeter * 1500);
     const irrigationCost = Math.round(area * 120);
-    const electricalCost = Math.round(area * 80 + (fans ? 15000 : 0));
+    const electricalCost = Math.round(area * 80 + (polyhouseType === 'climate-controlled' ? 25000 : 0));
     const laborCost = Math.round(area * 200);
     
     const subtotal = structureCost + coverCost + ventilationCost + foundationCost + irrigationCost + electricalCost + laborCost;
@@ -109,12 +157,14 @@ serve(async (req) => {
       climateAdjustment,
     };
 
+    console.log('Calculated cost:', JSON.stringify(cost));
+
     return new Response(JSON.stringify({ area, volume, climate, cost, crops: [] }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Calculation error:', error);
-    return new Response(JSON.stringify({ error: 'Calculation failed' }), {
+    return new Response(JSON.stringify({ error: 'Calculation failed', details: String(error) }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

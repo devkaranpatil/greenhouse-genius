@@ -358,34 +358,176 @@ function ClimateControlUnit({ position }: { position: [number, number, number] }
   );
 }
 
-// Animated shade net with wave effect
+// Animated shade net structure with proper mesh effect
 function ShadeNetStructure({ 
   width, 
   length, 
-  height 
+  height,
+  gutterHeight,
+  roofType
 }: { 
   width: number; 
   length: number; 
   height: number;
+  gutterHeight: number;
+  roofType: 'flat' | 'gable' | 'gothic';
 }) {
-  const netRef = useRef<THREE.Mesh>(null);
+  const roofNetRef = useRef<THREE.Mesh>(null);
+  const sideNet1Ref = useRef<THREE.Mesh>(null);
+  const sideNet2Ref = useRef<THREE.Mesh>(null);
   
+  const halfWidth = width / 2;
+  const halfLength = length / 2;
+  const roofHeight = height - gutterHeight;
+  
+  // Subtle wave animation for the netting
   useFrame((state) => {
-    if (netRef.current) {
-      netRef.current.position.y = height - 0.1 + Math.sin(state.clock.elapsedTime * 0.5) * 0.02;
+    const time = state.clock.elapsedTime;
+    if (roofNetRef.current) {
+      roofNetRef.current.position.y = height - 0.05 + Math.sin(time * 0.3) * 0.03;
+    }
+    if (sideNet1Ref.current) {
+      sideNet1Ref.current.position.x = -halfWidth + Math.sin(time * 0.5) * 0.02;
+    }
+    if (sideNet2Ref.current) {
+      sideNet2Ref.current.position.x = halfWidth + Math.sin(time * 0.5 + Math.PI) * 0.02;
     }
   });
   
+  // Create roof profile shape based on roof type
+  const roofShape = useMemo(() => {
+    const shape = new THREE.Shape();
+    
+    switch (roofType) {
+      case 'flat': {
+        shape.moveTo(-halfWidth, 0);
+        shape.lineTo(-halfWidth, roofHeight * 0.15);
+        shape.lineTo(halfWidth, roofHeight * 0.15);
+        shape.lineTo(halfWidth, 0);
+        shape.closePath();
+        break;
+      }
+      case 'gable': {
+        shape.moveTo(-halfWidth, 0);
+        shape.lineTo(0, roofHeight);
+        shape.lineTo(halfWidth, 0);
+        shape.closePath();
+        break;
+      }
+      case 'gothic': {
+        const segments = 20;
+        shape.moveTo(-halfWidth, 0);
+        for (let i = 1; i <= segments; i++) {
+          const t = i / segments;
+          const x = -halfWidth + width * t;
+          const y = roofHeight * Math.sin(Math.PI * t);
+          shape.lineTo(x, y);
+        }
+        shape.closePath();
+        break;
+      }
+    }
+    
+    const extrudeSettings = {
+      depth: length,
+      bevelEnabled: false,
+    };
+    
+    return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  }, [roofType, halfWidth, roofHeight, width, length]);
+  
+  // End wall geometry for shade net
+  const endWallShape = useMemo(() => {
+    const shape = new THREE.Shape();
+    
+    shape.moveTo(-halfWidth, 0);
+    shape.lineTo(-halfWidth, gutterHeight);
+    
+    switch (roofType) {
+      case 'flat':
+        shape.lineTo(-halfWidth, gutterHeight + roofHeight * 0.15);
+        shape.lineTo(halfWidth, gutterHeight + roofHeight * 0.15);
+        break;
+      case 'gable':
+        shape.lineTo(0, height);
+        break;
+      case 'gothic':
+        const segments = 20;
+        for (let i = 1; i <= segments; i++) {
+          const t = i / segments;
+          const x = -halfWidth + width * t;
+          const y = gutterHeight + roofHeight * Math.sin(Math.PI * t);
+          shape.lineTo(x, y);
+        }
+        break;
+    }
+    
+    shape.lineTo(halfWidth, gutterHeight);
+    shape.lineTo(halfWidth, 0);
+    shape.closePath();
+    
+    return new THREE.ShapeGeometry(shape);
+  }, [roofType, halfWidth, gutterHeight, height, roofHeight, width]);
+  
+  const netMaterial = {
+    color: '#2d5a27',
+    opacity: 0.5,
+    transparent: true,
+    side: THREE.DoubleSide,
+  };
+  
   return (
     <group>
-      <mesh ref={netRef} position={[0, height - 0.1, 0]}>
-        <boxGeometry args={[width, 0.02, length]} />
-        <meshStandardMaterial color="#2d5a27" opacity={0.6} transparent wireframe={false} />
+      {/* Top roof netting */}
+      <mesh 
+        ref={roofNetRef}
+        geometry={roofShape} 
+        position={[0, gutterHeight, -halfLength]}
+      >
+        <meshStandardMaterial {...netMaterial} />
       </mesh>
-      <mesh position={[0, height - 0.05, 0]}>
-        <boxGeometry args={[width, 0.01, length]} />
-        <meshStandardMaterial color="#1a3d15" opacity={0.4} transparent />
+      
+      {/* Side walls netting */}
+      <mesh 
+        ref={sideNet1Ref}
+        position={[-halfWidth, gutterHeight / 2, 0]}
+        rotation={[0, Math.PI / 2, 0]}
+      >
+        <planeGeometry args={[length, gutterHeight]} />
+        <meshStandardMaterial {...netMaterial} />
       </mesh>
+      
+      <mesh 
+        ref={sideNet2Ref}
+        position={[halfWidth, gutterHeight / 2, 0]}
+        rotation={[0, -Math.PI / 2, 0]}
+      >
+        <planeGeometry args={[length, gutterHeight]} />
+        <meshStandardMaterial {...netMaterial} />
+      </mesh>
+      
+      {/* End walls netting */}
+      <mesh geometry={endWallShape} position={[0, 0, -halfLength]}>
+        <meshStandardMaterial {...netMaterial} />
+      </mesh>
+      <mesh geometry={endWallShape} position={[0, 0, halfLength]} rotation={[0, Math.PI, 0]}>
+        <meshStandardMaterial {...netMaterial} />
+      </mesh>
+      
+      {/* Net mesh pattern overlay (decorative lines) */}
+      {Array.from({ length: Math.floor(length / 2) }).map((_, i) => (
+        <mesh key={`v-line-${i}`} position={[0, height - 0.1, -halfLength + 1 + i * 2]}>
+          <boxGeometry args={[width, 0.02, 0.02]} />
+          <meshStandardMaterial color="#1a3d15" opacity={0.8} transparent />
+        </mesh>
+      ))}
+      
+      {Array.from({ length: Math.floor(width / 2) }).map((_, i) => (
+        <mesh key={`h-line-${i}`} position={[-halfWidth + 1 + i * 2, height - 0.1, 0]}>
+          <boxGeometry args={[0.02, 0.02, length]} />
+          <meshStandardMaterial color="#1a3d15" opacity={0.8} transparent />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -704,7 +846,13 @@ export function PolyhouseModel({ config }: PolyhouseModelProps) {
 
         {/* Shade net covering for shade-net type */}
         {polyhouseType === 'shade-net' && (
-          <ShadeNetStructure width={animatedWidth} length={animatedLength} height={animatedRidgeHeight} />
+          <ShadeNetStructure 
+            width={animatedWidth} 
+            length={animatedLength} 
+            height={animatedRidgeHeight} 
+            gutterHeight={animatedGutterHeight}
+            roofType={roofType}
+          />
         )}
 
         {/* End walls */}

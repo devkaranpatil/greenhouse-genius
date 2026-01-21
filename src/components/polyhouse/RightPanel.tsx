@@ -66,7 +66,7 @@ export function RightPanel({ config, result, isLoading, onCalculate }: RightPane
     const configLines = [
       `Dimensions: ${config.length}m × ${config.width}m × ${config.ridgeHeight}m`,
       `Total Area: ${result.area.toFixed(0)} m²`,
-      `Volume: ${result.volume.toFixed(0)} m³`,
+      `Volume: ${(result.volume ?? 0).toFixed(0)} m³`,
       `Type: ${config.polyhouseType.replace(/-/g, ' ')}`,
       `Roof: ${config.roofType.replace(/-/g, ' ')}`,
       `Structure: ${config.structureMaterial.replace(/-/g, ' ')}`,
@@ -99,15 +99,15 @@ export function RightPanel({ config, result, isLoading, onCalculate }: RightPane
     y += 10;
     doc.setFontSize(10);
     const costLines = [
-      `Structure Cost: ₹${result.cost.structureCost.toLocaleString()}`,
-      `Cover Cost: ₹${result.cost.coverCost.toLocaleString()}`,
-      `Ventilation Cost: ₹${result.cost.ventilationCost.toLocaleString()}`,
-      `Foundation Cost: ₹${result.cost.foundationCost.toLocaleString()}`,
-      `Irrigation Cost: ₹${result.cost.irrigationCost.toLocaleString()}`,
-      `Electrical Cost: ₹${result.cost.electricalCost.toLocaleString()}`,
-      `Labor Cost: ₹${result.cost.laborCost.toLocaleString()}`,
-      `Miscellaneous: ₹${result.cost.miscCost.toLocaleString()}`,
-      `Climate Adjustment: ${result.cost.climateAdjustment > 0 ? '+' : ''}${(result.cost.climateAdjustment * 100).toFixed(1)}%`,
+      `Structure Cost: ₹${(result.cost.structureCost ?? 0).toLocaleString()}`,
+      `Cover Cost: ₹${(result.cost.coverCost ?? 0).toLocaleString()}`,
+      `Ventilation Cost: ₹${(result.cost.ventilationCost ?? 0).toLocaleString()}`,
+      `Foundation Cost: ₹${(result.cost.foundationCost ?? 0).toLocaleString()}`,
+      `Irrigation Cost: ₹${(result.cost.irrigationCost ?? 0).toLocaleString()}`,
+      `Electrical Cost: ₹${(result.cost.electricalCost ?? 0).toLocaleString()}`,
+      `Labor Cost: ₹${(result.cost.laborCost ?? 0).toLocaleString()}`,
+      `Miscellaneous: ₹${(result.cost.miscCost ?? 0).toLocaleString()}`,
+      `Climate Adjustment: ${(result.cost.climateAdjustment ?? 0) > 0 ? '+' : ''}${((result.cost.climateAdjustment ?? 0) * 100).toFixed(1)}%`,
     ];
     costLines.forEach(line => {
       doc.text(line, margin, y);
@@ -116,9 +116,9 @@ export function RightPanel({ config, result, isLoading, onCalculate }: RightPane
     y += 5;
     doc.setFontSize(12);
     doc.setTextColor(45, 106, 79);
-    doc.text(`Total Cost: ₹${result.cost.totalCost.toLocaleString()}`, margin, y);
+    doc.text(`Total Cost: ₹${(result.cost.totalCost ?? 0).toLocaleString()}`, margin, y);
     y += 6;
-    doc.text(`Cost per m²: ₹${result.cost.costPerSqm.toLocaleString()}`, margin, y);
+    doc.text(`Cost per m²: ₹${(result.cost.costPerSqm ?? 0).toLocaleString()}`, margin, y);
 
     doc.save(`polyhouse-report-${Date.now()}.pdf`);
   };
@@ -238,10 +238,10 @@ export function RightPanel({ config, result, isLoading, onCalculate }: RightPane
                 <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
                   <div className="text-sm text-muted-foreground mb-1">Total Estimated Cost</div>
                   <div className="text-3xl font-bold text-primary">
-                    ₹{result.cost.totalCost.toLocaleString()}
+                    ₹{(result.cost.totalCost ?? 0).toLocaleString()}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    ₹{result.cost.costPerSqm.toLocaleString()} per m²
+                    ₹{(result.cost.costPerSqm ?? 0).toLocaleString()} per m²
                   </div>
                 </div>
 
@@ -260,16 +260,16 @@ export function RightPanel({ config, result, isLoading, onCalculate }: RightPane
                   ].map((item) => (
                     <div key={item.label} className="flex justify-between items-center py-2 border-b border-border/50">
                       <span className="text-sm text-muted-foreground">{item.label}</span>
-                      <span className="text-sm font-medium">₹{item.value.toLocaleString()}</span>
+                      <span className="text-sm font-medium">₹{(item.value ?? 0).toLocaleString()}</span>
                     </div>
                   ))}
                   
-                  {result.cost.climateAdjustment !== 0 && (
+                  {(result.cost.climateAdjustment ?? 0) !== 0 && (
                     <div className="flex justify-between items-center py-2 text-warning">
                       <span className="text-sm">Climate Adjustment</span>
                       <span className="text-sm font-medium">
-                        {result.cost.climateAdjustment > 0 ? '+' : ''}
-                        {(result.cost.climateAdjustment * 100).toFixed(1)}%
+                        {(result.cost.climateAdjustment ?? 0) > 0 ? '+' : ''}
+                        {((result.cost.climateAdjustment ?? 0) * 100).toFixed(1)}%
                       </span>
                     </div>
                   )}
